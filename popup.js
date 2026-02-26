@@ -53,7 +53,17 @@ chrome.storage.local.get(
   (data) => {
     if (data.enabled !== undefined) state.enabled = data.enabled;
     if (data.blockedEmotions) state.blockedEmotions = { ...state.blockedEmotions, ...data.blockedEmotions };
-    if (data.whitelist) state.whitelist = data.whitelist;
+
+    // ensure whitelist always has expected structure
+    if (data.whitelist) {
+      state.whitelist = {
+        users: Array.isArray(data.whitelist.users) ? data.whitelist.users : [],
+        keywords: Array.isArray(data.whitelist.keywords) ? data.whitelist.keywords : [],
+      };
+    } else {
+      state.whitelist = { users: [], keywords: [] };
+    }
+
     if (data.analyzed) state.analyzed = data.analyzed;
     if (data.blocked) state.blocked = data.blocked;
     render();
@@ -115,14 +125,17 @@ function renderEmotions() {
 }
 
 function renderWhitelist() {
-  renderTags('user-tags', state.whitelist.users, 'user-tag', '@', (i) => {
-    state.whitelist.users.splice(i, 1);
+  const users = (state.whitelist && Array.isArray(state.whitelist.users)) ? state.whitelist.users : [];
+  const keywords = (state.whitelist && Array.isArray(state.whitelist.keywords)) ? state.whitelist.keywords : [];
+
+  renderTags('user-tags', users, 'user-tag', '@', (i) => {
+    users.splice(i, 1);
     saveAndSync();
     renderWhitelist();
   });
 
-  renderTags('keyword-tags', state.whitelist.keywords, 'keyword-tag', '', (i) => {
-    state.whitelist.keywords.splice(i, 1);
+  renderTags('keyword-tags', keywords, 'keyword-tag', '', (i) => {
+    keywords.splice(i, 1);
     saveAndSync();
     renderWhitelist();
   });
@@ -143,10 +156,16 @@ function renderTags(containerId, items, tagClass, prefix, onRemove) {
 // Save & Sync
 
 function saveAndSync() {
+  // normalize whitelist before saving
+  const whitelist = {
+    users: Array.isArray(state.whitelist?.users) ? state.whitelist.users : [],
+    keywords: Array.isArray(state.whitelist?.keywords) ? state.whitelist.keywords : [],
+  };
+
   const toSave = {
     enabled: state.enabled,
     blockedEmotions: state.blockedEmotions,
-    whitelist: state.whitelist,
+    whitelist,
   };
   chrome.storage.local.set(toSave);
 

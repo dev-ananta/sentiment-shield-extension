@@ -64,7 +64,8 @@
   }
 
   function isWhitelisted(text, author) {
-    const { users, keywords } = settings.whitelist;
+    // be defensive: whitelist may not be initialized yet
+    const { users = [], keywords = [] } = settings.whitelist || {};
     if (users.some(u => author.toLowerCase().includes(u.toLowerCase()))) return true;
     if (keywords.some(k => k && text.toLowerCase().includes(k.toLowerCase()))) return true;
     return false;
@@ -190,7 +191,14 @@
       (data) => {
         if (data.enabled !== undefined) settings.enabled = data.enabled;
         if (data.blockedEmotions) settings.blockedEmotions = data.blockedEmotions;
-        if (data.whitelist) settings.whitelist = data.whitelist;
+        if (data.whitelist) {
+        // ensure both arrays exist when loading stale/partial data
+        settings.whitelist = {
+          users: [],
+          keywords: [],
+          ...data.whitelist,
+        };
+      }
         if (data.analyzed) settings.analyzed = data.analyzed;
         if (data.blocked) settings.blocked = data.blocked;
         scanPosts();
@@ -201,7 +209,16 @@
   // Setting Change Listener Popup
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'SETTINGS_UPDATED') {
-      settings = { ...settings, ...msg.settings };
+      // merge whitelist carefully to avoid undefined arrays
+      const incoming = { ...msg.settings };
+      if (incoming.whitelist) {
+        incoming.whitelist = {
+          users: [],
+          keywords: [],
+          ...incoming.whitelist,
+        };
+      }
+      settings = { ...settings, ...incoming };
       if (!settings.enabled) {
         // Overlay Removal
         document.querySelectorAll('.ss-overlay').forEach(el => {
